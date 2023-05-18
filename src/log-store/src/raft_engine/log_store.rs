@@ -182,6 +182,10 @@ impl LogStore for RaftEngineLogStore {
         let last_index = engine.last_index(ns.id).unwrap_or(0);
         let mut start_index = id.max(engine.first_index(ns.id).unwrap_or(last_index + 1));
 
+        info!(
+            "[Debug info] LogStore read region {} start index: {}, last index {}",
+            ns.id, start_index, last_index
+        );
         let max_batch_size = self.config.read_batch_size;
         let (tx, mut rx) = tokio::sync::mpsc::channel(max_batch_size);
         let ns = ns.clone();
@@ -190,8 +194,8 @@ impl LogStore for RaftEngineLogStore {
                 let mut vec = Vec::with_capacity(max_batch_size);
                 match engine
                     .fetch_entries_to::<MessageType>(
-                        ns.id,
                         start_index,
+                        ns.id,
                         last_index + 1,
                         Some(max_batch_size),
                         &mut vec,

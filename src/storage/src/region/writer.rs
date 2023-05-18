@@ -476,15 +476,10 @@ impl WriterInner {
                     }
                 }
 
-                if let Some(payload) = payload {
-                    num_requests += 1;
-                    // Note that memtables of `Version` may be updated during replay.
-                    let version = version_control.current();
-
-                    if req_sequence > last_sequence {
-                        last_sequence = req_sequence;
-                    } else {
-                        logging::error!(
+                if req_sequence > last_sequence {
+                    last_sequence = req_sequence;
+                } else {
+                    logging::error!(
                             "Sequence should not decrease during replay, found {} <= {}, \
                              region_id: {}, region_name: {}, flushed_sequence: {}, num_requests: {}",
                             req_sequence,
@@ -495,16 +490,27 @@ impl WriterInner {
                             num_requests,
                         );
 
-                        error::SequenceNotMonotonicSnafu {
-                            prev: last_sequence,
-                            given: req_sequence,
-                        }
-                        .fail()?;
+                    error::SequenceNotMonotonicSnafu {
+                        prev: last_sequence,
+                        given: req_sequence,
                     }
+                    .fail()?;
+                }
+
+                if let Some(payload) = payload {
+                    num_requests += 1;
+                    // Note that memtables of `Version` may be updated during replay.
+                    let version = version_control.current();
+
                     // TODO(yingwen): Trigger flush if the size of memtables reach the flush threshold to avoid
                     // out of memory during replay, but we need to do it carefully to avoid dead lock.
                     let mut inserter = Inserter::new(last_sequence);
                     inserter.insert_memtable(&payload, version.mutable_memtable())?;
+                } else {
+                    info!(
+                        "Found manifest WAL entry, region: {}, sequence: {}, header:{:?}",
+                        writer_ctx.shared.id, req_sequence, _header
+                    );
                 }
             }
 
