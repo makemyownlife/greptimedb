@@ -16,7 +16,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use common_base::readable_size::ReadableSize;
-use common_telemetry::logging;
+use common_telemetry::{info, logging};
 use futures::TryStreamExt;
 use metrics::increment_counter;
 use snafu::{ensure, ResultExt};
@@ -246,6 +246,11 @@ impl RegionWriter {
         let next_sequence = version_control.committed_sequence() + 1;
         version_control.set_committed_sequence(next_sequence);
 
+        let region_id = version_control.current().metadata().id();
+        info!(
+            "[Debug info] persist_manifest_version, region: {}, sequence: {}",
+            region_id, next_sequence
+        );
         let header = WalHeader::with_last_manifest_version(manifest_version);
         wal.write_to_wal(next_sequence, header, None).await?;
 

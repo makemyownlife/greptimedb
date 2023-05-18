@@ -358,7 +358,7 @@ async fn print_regional_key_debug_info(
 
     match backend.get(regional_key.as_bytes()).await {
         Ok(Some(Kv(_, values_bytes))) => {
-            debug!(
+            warn!(
                 "Node id: {}, TableRegionalKey: {}, value: {},",
                 node_id,
                 table_key,
@@ -366,13 +366,13 @@ async fn print_regional_key_debug_info(
             );
         }
         Ok(None) => {
-            debug!(
+            warn!(
                 "Node id: {}, TableRegionalKey: {}, value: None",
                 node_id, table_key,
             );
         }
         Err(err) => {
-            debug!(
+            warn!(
                 "Node id: {}, failed to fetch TableRegionalKey: {}, source: {}",
                 node_id, regional_key, err
             );
@@ -416,7 +416,7 @@ async fn initiate_tables(
                             "Node id: {}, failed to open table: {}, source: {}",
                             node_id, table_key, err
                         );
-                        debug!(
+                        warn!(
                             "Node id: {}, TableGlobalKey: {}, value: {:?},",
                             node_id, table_key, table_value
                         );

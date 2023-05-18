@@ -132,6 +132,13 @@ impl LogStore for RaftEngineLogStore {
     async fn append(&self, e: Self::Entry) -> Result<AppendResponse, Self::Error> {
         ensure!(self.started(), IllegalStateSnafu);
         let entry_id = e.id;
+
+        if e.namespace_id == 139882789863424 || e.namespace_id == 139955804307456 {
+            info!(
+                "[APPEND] namespace id: {}, entry id: {}",
+                e.namespace_id, entry_id
+            );
+        }
         let mut batch = LogBatch::with_capacity(1);
         batch
             .add_entries::<MessageType>(e.namespace_id, &[e])
@@ -290,9 +297,10 @@ impl LogStore for RaftEngineLogStore {
         ensure!(self.started(), IllegalStateSnafu);
         let obsoleted = self.engine.compact_to(namespace.id(), id + 1);
         info!(
-            "Namespace {} obsoleted {} entries",
+            "Namespace {} obsoleted {} entries, compacted index: {}",
             namespace.id(),
-            obsoleted
+            obsoleted,
+            id
         );
         Ok(())
     }
