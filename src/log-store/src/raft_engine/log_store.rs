@@ -133,12 +133,12 @@ impl LogStore for RaftEngineLogStore {
         ensure!(self.started(), IllegalStateSnafu);
         let entry_id = e.id;
 
-        if e.namespace_id == 139882789863424 || e.namespace_id == 139955804307456 {
-            info!(
-                "[Debug info] namespace id: {}, entry id: {}",
-                e.namespace_id, entry_id
-            );
-        }
+        let first = self.engine.first_index(e.namespace_id);
+        let last = self.engine.last_index(e.namespace_id);
+        info!(
+            "[Debug info] region: {}, id: {}, first: {:?}, last: {:?}",
+            e.namespace_id, entry_id, first, last
+        );
         let mut batch = LogBatch::with_capacity(1);
         batch
             .add_entries::<MessageType>(e.namespace_id, &[e])
