@@ -135,7 +135,7 @@ impl LogStore for RaftEngineLogStore {
 
         if e.namespace_id == 139882789863424 || e.namespace_id == 139955804307456 {
             info!(
-                "[APPEND] namespace id: {}, entry id: {}",
+                "[Debug info] namespace id: {}, entry id: {}",
                 e.namespace_id, entry_id
             );
         }
@@ -297,7 +297,7 @@ impl LogStore for RaftEngineLogStore {
         ensure!(self.started(), IllegalStateSnafu);
         let obsoleted = self.engine.compact_to(namespace.id(), id + 1);
         info!(
-            "Namespace {} obsoleted {} entries, compacted index: {}",
+            "[Debug info] Namespace {} obsoleted {} entries, compacted index: {}",
             namespace.id(),
             obsoleted,
             id
