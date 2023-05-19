@@ -71,7 +71,7 @@ pub fn init_default_ut_logging() {
         let dir =
             env::var("UNITTEST_LOG_DIR").unwrap_or_else(|_| "/tmp/__unittest_logs".to_string());
 
-        let level = env::var("UNITTEST_LOG_LEVEL").unwrap_or_else(|_| "DEBUG".to_string());
+        let level = env::var("UNITTEST_LOG_LEVEL").unwrap_or_else(|_| "INFO".to_string());
         let opts = LoggingOptions {
             dir: dir.clone(),
             level,

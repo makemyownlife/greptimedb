@@ -443,6 +443,7 @@ impl WriterInner {
     ) -> Result<()> {
         let version_control = writer_ctx.version_control();
 
+        info!("=== Replay region:{}", writer_ctx.shared.id);
         let (flushed_sequence, mut last_sequence);
         let mut num_requests = 0;
         let mut num_recovered_metadata = 0;
@@ -452,11 +453,13 @@ impl WriterInner {
 
             // Data after flushed sequence need to be recovered.
             flushed_sequence = version_control.current().flushed_sequence();
+            info!("Recovered flushed sequence: {}", flushed_sequence);
             last_sequence = flushed_sequence;
             // Read starts from the first entry after last flushed entry, so the start sequence
             // should be flushed_sequence + 1.
             let mut stream = writer_ctx.wal.read_from_wal(flushed_sequence + 1).await?;
             while let Some((req_sequence, _header, payload)) = stream.try_next().await? {
+                info!("=== Replay sequence: {}", req_sequence);
                 while let Some((sequence_before_alter, _)) = next_apply_metadata {
                     // There might be multiple metadata changes to be applied, so a loop is necessary.
                     if req_sequence > sequence_before_alter {
@@ -501,15 +504,14 @@ impl WriterInner {
                     num_requests += 1;
                     // Note that memtables of `Version` may be updated during replay.
                     let version = version_control.current();
-
                     // TODO(yingwen): Trigger flush if the size of memtables reach the flush threshold to avoid
                     // out of memory during replay, but we need to do it carefully to avoid dead lock.
                     let mut inserter = Inserter::new(last_sequence);
                     inserter.insert_memtable(&payload, version.mutable_memtable())?;
                 } else {
                     info!(
-                        "Found manifest WAL entry, region: {}, sequence: {}, header:{:?}",
-                        writer_ctx.shared.id, req_sequence, _header
+                        "[Debug info] entry without payload sequence: {}",
+                        req_sequence
                     );
                 }
             }

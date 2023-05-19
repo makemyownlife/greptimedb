@@ -133,12 +133,6 @@ impl LogStore for RaftEngineLogStore {
         ensure!(self.started(), IllegalStateSnafu);
         let entry_id = e.id;
 
-        let first = self.engine.first_index(e.namespace_id);
-        let last = self.engine.last_index(e.namespace_id);
-        info!(
-            "[Debug info] region: {}, id: {}, first: {:?}, last: {:?}",
-            e.namespace_id, entry_id, first, last
-        );
         let mut batch = LogBatch::with_capacity(1);
         batch
             .add_entries::<MessageType>(e.namespace_id, &[e])
@@ -183,8 +177,10 @@ impl LogStore for RaftEngineLogStore {
         let mut start_index = id.max(engine.first_index(ns.id).unwrap_or(last_index + 1));
 
         info!(
-            "[Debug info] LogStore read region {} start index: {}, last index {}",
-            ns.id, start_index, last_index
+            "[Debug info] LogStore read region {} start index: {:?}, last index {}",
+            ns.id,
+            engine.first_index(ns.id),
+            last_index
         );
         let max_batch_size = self.config.read_batch_size;
         let (tx, mut rx) = tokio::sync::mpsc::channel(max_batch_size);
@@ -194,8 +190,8 @@ impl LogStore for RaftEngineLogStore {
                 let mut vec = Vec::with_capacity(max_batch_size);
                 match engine
                     .fetch_entries_to::<MessageType>(
-                        start_index,
                         ns.id,
+                        start_index,
                         last_index + 1,
                         Some(max_batch_size),
                         &mut vec,

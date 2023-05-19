@@ -15,7 +15,9 @@
 //! Region flush tests.
 
 use std::sync::Arc;
+use std::time::Duration;
 
+use common_telemetry::info;
 use common_test_util::temp_dir::create_temp_dir;
 use log_store::raft_engine::log_store::RaftEngineLogStore;
 use store_api::storage::{FlushContext, FlushReason, OpenOptions, Region, WriteResponse};
@@ -23,11 +25,34 @@ use store_api::storage::{FlushContext, FlushReason, OpenOptions, Region, WriteRe
 use crate::engine;
 use crate::flush::FlushStrategyRef;
 use crate::region::tests::{self, FileTesterBase};
-use crate::region::RegionImpl;
+use crate::region::{CompactContext, RegionImpl};
 use crate::test_util::config_util;
 use crate::test_util::flush_switch::{has_parquet_file, FlushSwitch};
 
 const REGION_NAME: &str = "region-flush-0";
+
+/// Create a new region for flush test
+async fn open_region_for_flush(
+    store_dir: &str,
+    flush_strategy: FlushStrategyRef,
+) -> RegionImpl<RaftEngineLogStore> {
+    let mut store_config = config_util::new_store_config(REGION_NAME, store_dir).await;
+    store_config.flush_strategy = flush_strategy;
+
+    RegionImpl::open(
+        REGION_NAME.to_string(),
+        store_config,
+        &OpenOptions {
+            parent_dir: store_dir.to_string(),
+            write_buffer_size: None,
+            ttl: None,
+            compaction_time_window: None,
+        },
+    )
+    .await
+    .unwrap()
+    .unwrap()
+}
 
 /// Create a new region for flush test
 async fn create_region_for_flush(
@@ -90,6 +115,15 @@ impl FlushTester {
         self.base().full_scan().await
     }
 
+    #[allow(dead_code)]
+    async fn compact(&self, wait: bool) {
+        let ctx = CompactContext {
+            wait,
+            max_files_in_l0: 1,
+        };
+        self.base().region.compact(ctx).await.unwrap();
+    }
+
     async fn flush(&self, wait: Option<bool>) {
         let ctx = wait
             .map(|wait| FlushContext {
@@ -150,6 +184,52 @@ async fn test_manual_flush() {
     tester.flush(None).await;
 
     assert!(has_parquet_file(&sst_dir));
+}
+
+#[tokio::test]
+async fn test_restart() {
+    common_telemetry::init_default_ut_logging();
+
+    let store_dir = "/Users/lei/flush-test";
+
+    let flush_switch = Arc::new(FlushSwitch::default());
+    let _region_impl = open_region_for_flush(store_dir, flush_switch).await;
+    tokio::time::sleep(Duration::from_millis(10)).await;
+}
+
+#[tokio::test]
+async fn test_flush_and_restart() {
+    common_telemetry::init_default_ut_logging();
+
+    let store_dir = "/Users/lei/flush-test";
+    std::fs::remove_dir_all(store_dir).unwrap();
+    let flush_switch = Arc::new(FlushSwitch::default());
+    let tester = FlushTester::new(store_dir, flush_switch.clone()).await;
+
+    info!("=== 1");
+    tester.put(&[(1000, Some(100))]).await;
+
+    let sst_dir = format!("{}/{}", store_dir, engine::region_sst_dir("", REGION_NAME));
+    assert!(!has_parquet_file(&sst_dir));
+
+    info!("=== 2");
+    tester.flush(Some(true)).await;
+    info!("=== 3");
+    tester.flush(Some(true)).await;
+    info!("=== 4");
+    tester.flush(Some(true)).await;
+    info!("=== 5");
+    tester.put(&[(1000, Some(100))]).await;
+
+    info!("=== 6");
+    tester.flush(Some(true)).await;
+    tester.put(&[(1000, Some(100))]).await;
+
+    tester.flush(Some(true)).await;
+    tester.flush(Some(true)).await;
+    tester.flush(Some(true)).await;
+
+    info!("=== 7");
 }
 
 #[tokio::test]
