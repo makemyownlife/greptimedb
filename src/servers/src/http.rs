@@ -82,6 +82,7 @@ use crate::query_handler::{
     PromStoreProtocolHandlerRef, ScriptHandlerRef,
 };
 use crate::server::Server;
+use crate::source_error_str;
 
 pub const HTTP_API_VERSION: &str = "v1";
 pub const HTTP_API_PREFIX: &str = "/v1/";
@@ -300,10 +301,7 @@ impl JsonResponse {
                         },
 
                         Err(e) => {
-                            return Self::with_error(
-                                format!("Recordbatch error: {e}"),
-                                e.status_code(),
-                            );
+                            return Self::with_error(source_error_str(&e), e.status_code());
                         }
                     }
                 }
@@ -316,10 +314,7 @@ impl JsonResponse {
                     }
                 },
                 Err(e) => {
-                    return Self::with_error(
-                        format!("Query engine output error: {e}"),
-                        e.status_code(),
-                    );
+                    return Self::with_error(source_error_str(&e), e.status_code());
                 }
             }
         }
@@ -772,7 +767,7 @@ async fn handle_error(err: BoxError) -> Json<JsonResponse> {
     logging::error!("Unhandled internal error: {}", err);
 
     Json(JsonResponse::with_error(
-        format!("Unhandled internal error: {err}"),
+        source_error_str(&*err),
         StatusCode::Unexpected,
     ))
 }

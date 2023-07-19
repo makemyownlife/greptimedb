@@ -30,6 +30,7 @@ use tokio::io::AsyncWrite;
 
 use crate::error::{self, Error, OtherSnafu, Result};
 use crate::metrics::*;
+use crate::source_error_str;
 
 /// Try to write multiple output to the writer if possible.
 pub async fn write_output<W: AsyncWrite + Send + Sync + Unpin>(
@@ -210,7 +211,7 @@ impl<'a, W: AsyncWrite + Unpin> MysqlResultWriter<'a, W> {
         );
 
         let kind = ErrorKind::ER_INTERNAL_ERROR;
-        w.error(kind, error.to_string().as_bytes()).await?;
+        w.error(kind, source_error_str(error).as_bytes()).await?;
         Ok(())
     }
 }

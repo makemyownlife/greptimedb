@@ -49,6 +49,14 @@ pub enum Mode {
     Distributed,
 }
 
+pub fn source_error_str(error: impl std::error::Error) -> String {
+    if let Some(source_error) = error.source() {
+        source_error_str(source_error)
+    } else {
+        error.to_string()
+    }
+}
+
 /// Cached SQL and logical plan for database interfaces
 #[derive(Clone)]
 pub struct SqlPlan {

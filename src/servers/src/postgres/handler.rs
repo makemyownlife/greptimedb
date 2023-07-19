@@ -38,7 +38,7 @@ use super::types::*;
 use super::PostgresServerHandler;
 use crate::error::Result;
 use crate::query_handler::sql::ServerSqlQueryHandlerRef;
-use crate::SqlPlan;
+use crate::{source_error_str, SqlPlan};
 
 #[async_trait]
 impl SimpleQueryHandler for PostgresServerHandler {
@@ -90,7 +90,7 @@ fn output_to_query_response<'a>(
         Err(e) => Ok(Response::Error(Box::new(ErrorInfo::new(
             "ERROR".to_string(),
             "XX000".to_string(),
-            e.to_string(),
+            source_error_str(e),
         )))),
     }
 }
