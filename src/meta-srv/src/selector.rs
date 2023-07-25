@@ -14,6 +14,7 @@
 
 pub mod lease_based;
 pub mod load_based;
+pub mod random;
 
 use serde::{Deserialize, Serialize};
 
@@ -35,6 +36,7 @@ pub enum SelectorType {
     #[default]
     LoadBased,
     LeaseBased,
+    Random,
 }
 
 impl TryFrom<&str> for SelectorType {
@@ -44,6 +46,7 @@ impl TryFrom<&str> for SelectorType {
         match value {
             "LoadBased" => Ok(SelectorType::LoadBased),
             "LeaseBased" => Ok(SelectorType::LeaseBased),
+            "Random" => Ok(SelectorType::Random),
             other => error::UnsupportedSelectorTypeSnafu {
                 selector_type: other,
             }

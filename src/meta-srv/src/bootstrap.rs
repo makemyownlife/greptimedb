@@ -38,6 +38,7 @@ use crate::metasrv::builder::MetaSrvBuilder;
 use crate::metasrv::{MetaSrv, MetaSrvOptions, SelectorRef};
 use crate::selector::lease_based::LeaseBasedSelector;
 use crate::selector::load_based::LoadBasedSelector;
+use crate::selector::random::RandomSelector;
 use crate::selector::SelectorType;
 use crate::service::admin;
 use crate::service::store::etcd::EtcdStore;
@@ -177,6 +178,7 @@ pub async fn build_meta_srv(opts: &MetaSrvOptions) -> Result<MetaSrv> {
     let selector = match opts.selector {
         SelectorType::LoadBased => Arc::new(LoadBasedSelector) as SelectorRef,
         SelectorType::LeaseBased => Arc::new(LeaseBasedSelector) as SelectorRef,
+        SelectorType::Random => Arc::new(RandomSelector) as SelectorRef,
     };
 
     MetaSrvBuilder::new()
