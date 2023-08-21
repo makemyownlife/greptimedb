@@ -29,8 +29,6 @@ use serde_json::json;
 use snafu::{Location, Snafu};
 use tonic::Code;
 
-use crate::source_error_str;
-
 #[derive(Debug, Snafu)]
 #[snafu(visibility(pub))]
 pub enum Error {
@@ -507,7 +505,7 @@ macro_rules! define_into_tonic_status {
                 let metadata = MetadataMap::from_headers(headers);
                 tonic::Status::with_metadata(
                     $crate::error::status_to_tonic_code(status_code),
-                    source_error_str(err),
+                    $crate::source_error_str(err),
                     metadata,
                 )
             }
