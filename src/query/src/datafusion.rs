@@ -88,6 +88,11 @@ impl DatafusionQueryEngine {
         let physical_plan = self.create_physical_plan(&mut ctx, &plan).await?;
         let physical_plan = self.optimize_physical_plan(&mut ctx, physical_plan)?;
 
+        common_telemetry::info!(
+            "[DEBUG] going to execute physical plan: {:?}",
+            physical_plan
+        );
+
         let physical_plan = if let Some(wrapper) = self.plugins.get::<PhysicalPlanWrapperRef>() {
             wrapper.wrap(physical_plan, query_ctx)
         } else {

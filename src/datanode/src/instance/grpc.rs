@@ -81,6 +81,8 @@ impl Instance {
             .await
             .context(DecodeLogicalPlanSnafu)?;
 
+        common_telemetry::info!("[DEBUG] going to execute logical plan: {}", logical_plan);
+
         self.query_engine
             .execute(LogicalPlan::DfPlan(logical_plan), ctx.clone())
             .await

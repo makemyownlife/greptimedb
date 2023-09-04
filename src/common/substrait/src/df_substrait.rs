@@ -46,7 +46,9 @@ impl SubstraitPlan for DFLogicalSubstraitConvertor {
         catalog: &str,
         schema: &str,
     ) -> Result<Self::Plan, Self::Error> {
-        let state_config = SessionConfig::new().with_default_catalog_and_schema(catalog, schema);
+        let state_config = SessionConfig::new()
+            .with_default_catalog_and_schema(catalog, schema)
+            .with_target_partitions(1);
         let state = SessionState::with_config_rt(state_config, Arc::new(RuntimeEnv::default()))
             .with_serializer_registry(Arc::new(ExtensionSerializer));
         let mut context = SessionContext::with_state(state);
