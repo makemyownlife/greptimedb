@@ -20,11 +20,8 @@ use api::v1::{CompactTableExpr, DdlRequest, FlushTableExpr};
 use axum::extract::{Query, RawBody, State};
 use axum::http::StatusCode;
 use axum::Extension;
-use common_catalog::consts::DEFAULT_CATALOG_NAME;
 use session::context::QueryContextRef;
-use snafu::OptionExt;
 
-use crate::error;
 use crate::error::Result;
 use crate::query_handler::grpc::ServerGrpcQueryHandlerRef;
 
@@ -35,17 +32,6 @@ pub async fn flush(
     Extension(query_ctx): Extension<QueryContextRef>,
     RawBody(_): RawBody,
 ) -> Result<(StatusCode, ())> {
-    let catalog_name = params
-        .get("catalog")
-        .cloned()
-        .unwrap_or(DEFAULT_CATALOG_NAME.to_string());
-    let schema_name = params
-        .get("db")
-        .cloned()
-        .context(error::InvalidFlushArgumentSnafu {
-            err_msg: "db is not present",
-        })?;
-
     // if table name is not present, flush all tables inside schema
     let table_name = params.get("table").cloned().unwrap_or_default();
 
@@ -58,8 +44,8 @@ pub async fn flush(
 
     let request = Request::Ddl(DdlRequest {
         expr: Some(Expr::FlushTable(FlushTableExpr {
-            catalog_name: catalog_name.clone(),
-            schema_name: schema_name.clone(),
+            catalog_name: query_ctx.current_catalog().to_string(),
+            schema_name: query_ctx.current_schema().to_string(),
             table_name: table_name.clone(),
             region_number,
             ..Default::default()
@@ -77,17 +63,6 @@ pub async fn compact(
     Extension(query_ctx): Extension<QueryContextRef>,
     RawBody(_): RawBody,
 ) -> Result<(StatusCode, ())> {
-    let catalog_name = params
-        .get("catalog")
-        .cloned()
-        .unwrap_or(DEFAULT_CATALOG_NAME.to_string());
-    let schema_name = params
-        .get("db")
-        .cloned()
-        .context(error::InvalidFlushArgumentSnafu {
-            err_msg: "db is not present",
-        })?;
-
     // if table name is not present, flush all tables inside schema
     let table_name = params.get("table").cloned().unwrap_or_default();
 
@@ -100,8 +75,8 @@ pub async fn compact(
 
     let request = Request::Ddl(DdlRequest {
         expr: Some(Expr::CompactTable(CompactTableExpr {
-            catalog_name: catalog_name.clone(),
-            schema_name: schema_name.clone(),
+            catalog_name: query_ctx.current_catalog().to_string(),
+            schema_name: query_ctx.current_schema().to_string(),
             table_name: table_name.clone(),
             region_number,
         })),
