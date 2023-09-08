@@ -40,6 +40,7 @@ pub struct ChunkReaderImpl {
     schema: ProjectedSchemaRef,
     batch_reader: BoxedBatchReader,
     output_ordering: Option<Vec<OrderOption>>,
+    output_rows: usize,
 }
 
 #[async_trait]
@@ -53,8 +54,12 @@ impl ChunkReader for ChunkReaderImpl {
     async fn next_chunk(&mut self) -> Result<Option<Chunk>> {
         let batch = match self.batch_reader.next_batch().await? {
             Some(b) => b,
-            None => return Ok(None),
+            None => {
+                common_telemetry::info!("[DEBUG] chunk reader end with {} rows", self.output_rows);
+                return Ok(None);
+            }
         };
+        self.output_rows += batch.num_rows();
         Ok(Some(Chunk::new(batch.columns)))
     }
 
@@ -80,6 +85,7 @@ impl ChunkReaderImpl {
             schema,
             batch_reader,
             output_ordering,
+            output_rows: 0,
         }
     }
 
