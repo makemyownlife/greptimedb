@@ -123,12 +123,12 @@ impl Stream for StreamWithMetricWrapper {
         // let _timer = this.metric.elapsed_compute().timer();
         let poll = this.stream.poll_next_unpin(cx);
         if let Poll::Ready(Option::Some(Result::Ok(record_batch))) = &poll {
-            let batch_mem_size = record_batch
-                .columns()
-                .iter()
-                .map(|vec_ref| vec_ref.memory_size())
-                .sum::<usize>();
-            this.metric.record_output(batch_mem_size);
+            // let batch_mem_size = record_batch
+            //     .columns()
+            //     .iter()
+            //     .map(|vec_ref| vec_ref.memory_size())
+            //     .sum::<usize>();
+            this.metric.record_output(record_batch.num_rows());
         }
 
         poll

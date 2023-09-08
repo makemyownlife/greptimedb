@@ -297,7 +297,7 @@ impl ChunkReaderBuilder {
             num_read_files,
         );
 
-        let reader = reader_builder.build();
+        let reader = reader_builder.build(common_telemetry::trace_id().unwrap_or_default());
         let reader = DedupReader::new(schema.clone(), reader);
         Ok(Box::new(reader) as Box<_>)
     }

@@ -406,6 +406,7 @@ pub struct MergeReader {
     /// Buffered batch.
     batch_builder: BatchBuilder,
     output_rows: usize,
+    trace_id: u64,
 }
 
 #[async_trait]
@@ -419,9 +420,10 @@ impl BatchReader for MergeReader {
             }
             None => {
                 common_telemetry::info!(
-                    "[DEBUG] parquet chunk stream got {} rows, trace_id: {:?}",
+                    "[DEBUG] merge chunk stream got {} rows, trace_id: {:?}/{}",
                     self.output_rows,
                     common_telemetry::trace_id(),
+                    self.trace_id,
                 );
                 Ok(None)
             }
@@ -463,7 +465,7 @@ impl MergeReaderBuilder {
         self
     }
 
-    pub fn build(self) -> MergeReader {
+    pub fn build(self, trace_id: u64) -> MergeReader {
         let num_sources = self.sources.len();
         let column_schemas = self.schema.schema_to_read().schema().column_schemas();
         let batch_builder = BatchBuilder::with_capacity(
@@ -480,6 +482,7 @@ impl MergeReaderBuilder {
             batch_size: self.batch_size,
             batch_builder,
             output_rows: 0,
+            trace_id,
         }
     }
 }
@@ -630,7 +633,7 @@ mod tests {
     async fn test_merge_reader_empty() {
         let schema = read_util::new_projected_schema();
 
-        let mut reader = MergeReaderBuilder::new(schema).build();
+        let mut reader = MergeReaderBuilder::new(schema).build(0);
 
         assert!(reader.next_batch().await.unwrap().is_none());
         // Call next_batch() again is allowed.
@@ -682,7 +685,7 @@ mod tests {
             }
         }
 
-        builder.build()
+        builder.build(0)
     }
 
     async fn check_merge_reader_result(mut reader: MergeReader, input: &[Batches<'_>]) {

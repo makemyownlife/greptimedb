@@ -21,6 +21,7 @@ use common_recordbatch::{DfSendableRecordBatchStream, SendableRecordBatchStream}
 use datafusion::arrow::datatypes::SchemaRef as DfSchemaRef;
 use datafusion::error::Result as DfResult;
 pub use datafusion::execution::context::{SessionContext, TaskContext};
+use datafusion::physical_plan::display::DisplayableExecutionPlan;
 use datafusion::physical_plan::expressions::PhysicalSortExpr;
 use datafusion::physical_plan::metrics::{BaselineMetrics, ExecutionPlanMetricsSet, MetricsSet};
 pub use datafusion::physical_plan::Partitioning;
@@ -77,7 +78,6 @@ pub trait PhysicalPlan: Debug + Send + Sync {
 }
 
 /// Adapt DataFusion's [`ExecutionPlan`](DfPhysicalPlan) to GreptimeDB's [`PhysicalPlan`].
-#[derive(Debug)]
 pub struct PhysicalPlanAdapter {
     schema: SchemaRef,
     df_plan: Arc<dyn DfPhysicalPlan>,
@@ -95,6 +95,21 @@ impl PhysicalPlanAdapter {
 
     pub fn df_plan(&self) -> Arc<dyn DfPhysicalPlan> {
         self.df_plan.clone()
+    }
+}
+
+impl Debug for PhysicalPlanAdapter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PhysicalPlanAdapter")
+            .field(
+                "df_plan",
+                &format!(
+                    "{}",
+                    DisplayableExecutionPlan::with_metrics(self.df_plan.as_ref()).indent(true)
+                ),
+            )
+            .field("metric", &self.metric)
+            .finish()
     }
 }
 

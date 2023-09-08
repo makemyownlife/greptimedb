@@ -65,10 +65,10 @@ impl Snapshot for SnapshotImpl {
             self.sst_layer.clone(),
         )
         .reserve_num_memtables(memtable_version.num_memtables())
-        .projection(request.projection)
-        .filters(request.filters)
+        // .projection(request.projection)
+        // .filters(request.filters)
         .batch_size(ctx.batch_size)
-        .output_ordering(request.output_ordering)
+        // .output_ordering(request.output_ordering)
         .visible_sequence(visible_sequence)
         .pick_memtables(mutables.clone())
         .use_chain_reader(false);
