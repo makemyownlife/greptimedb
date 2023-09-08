@@ -28,9 +28,11 @@ use common_grpc::flight::{FlightEncoder, FlightMessage};
 use common_query::Output;
 use futures::Stream;
 use prost::Message;
+use session::context::QueryContextRef;
 use snafu::ResultExt;
 use tonic::{Request, Response, Status, Streaming};
 
+use super::greptime_handler::create_query_context;
 use crate::error;
 pub use crate::grpc::flight::stream::FlightRecordBatchStream;
 use crate::grpc::greptime_handler::GreptimeRequestHandler;
@@ -150,23 +152,25 @@ impl FlightCraft for GreptimeRequestHandler {
         let ticket = request.into_inner().ticket;
         let request =
             GreptimeRequest::decode(ticket.as_ref()).context(error::InvalidFlightTicketSnafu)?;
+        let header = request.header.as_ref();
+        let query_ctx = create_query_context(header);
 
         let output = self.handle_request(request).await?;
 
         let stream: Pin<Box<dyn Stream<Item = Result<FlightData, Status>> + Send + Sync>> =
-            to_flight_data_stream(output);
+            to_flight_data_stream(output, query_ctx);
         Ok(Response::new(stream))
     }
 }
 
-fn to_flight_data_stream(output: Output) -> TonicStream<FlightData> {
+fn to_flight_data_stream(output: Output, query_ctx: QueryContextRef) -> TonicStream<FlightData> {
     match output {
         Output::Stream(stream) => {
-            let stream = FlightRecordBatchStream::new(stream);
+            let stream = FlightRecordBatchStream::new(stream, query_ctx);
             Box::pin(stream) as _
         }
         Output::RecordBatches(x) => {
-            let stream = FlightRecordBatchStream::new(x.as_stream());
+            let stream = FlightRecordBatchStream::new(x.as_stream(), query_ctx);
             Box::pin(stream) as _
         }
         Output::AffectedRows(rows) => {

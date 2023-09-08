@@ -147,7 +147,7 @@ impl FlightCraft for RegionServer {
 
         let result = self.handle_read(request).await?;
 
-        let stream = Box::pin(FlightRecordBatchStream::new(result));
+        let stream = Box::pin(FlightRecordBatchStream::new(result, QueryContext::arc()));
         Ok(Response::new(stream))
     }
 }
