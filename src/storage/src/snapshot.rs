@@ -65,7 +65,7 @@ impl Snapshot for SnapshotImpl {
         .output_ordering(request.output_ordering)
         .visible_sequence(visible_sequence)
         .pick_memtables(mutables.clone())
-        .use_chain_reader(true);
+        .use_chain_reader(false);
 
         for memtable in immutables {
             builder = builder.pick_memtables(memtable.clone());

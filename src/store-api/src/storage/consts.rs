@@ -88,7 +88,7 @@ pub const PRIMARY_KEY_COLUMN_NAME: &str = "__primary_key";
 
 // ---------- Default options --------------------------------------------------
 
-pub const READ_BATCH_SIZE: usize = 256;
+pub const READ_BATCH_SIZE: usize = 4096;
 
 pub const WRITE_ROW_GROUP_SIZE: usize = 4096;
 
