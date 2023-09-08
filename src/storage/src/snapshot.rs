@@ -47,6 +47,12 @@ impl Snapshot for SnapshotImpl {
         ctx: &ReadContext,
         request: ScanRequest,
     ) -> Result<ScanResponse<ChunkReaderImpl>> {
+        common_telemetry::info!(
+            "incomming scan request: {:?}, trace_id: {:?}, region_id: {}",
+            request,
+            common_telemetry::trace_id(),
+            self.version.metadata().id()
+        );
         let visible_sequence = self.sequence_to_read(request.sequence);
         let memtable_version = self.version.memtables();
 

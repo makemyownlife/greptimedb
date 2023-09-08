@@ -89,8 +89,9 @@ impl DatafusionQueryEngine {
         let physical_plan = self.optimize_physical_plan(&mut ctx, physical_plan)?;
 
         common_telemetry::info!(
-            "[DEBUG] going to execute physical plan: {:?}",
-            physical_plan
+            "[DEBUG] going to execute physical plan: {:?}, trace_id: {:?}",
+            physical_plan,
+            common_telemetry::trace_id(),
         );
 
         let physical_plan = if let Some(wrapper) = self.plugins.get::<PhysicalPlanWrapperRef>() {

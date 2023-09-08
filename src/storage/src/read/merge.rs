@@ -405,12 +405,27 @@ pub struct MergeReader {
     batch_size: usize,
     /// Buffered batch.
     batch_builder: BatchBuilder,
+    output_rows: usize,
 }
 
 #[async_trait]
 impl BatchReader for MergeReader {
     async fn next_batch(&mut self) -> Result<Option<Batch>> {
-        self.fetch_next_batch().await
+        let batch = self.fetch_next_batch().await?;
+        match batch {
+            Some(b) => {
+                self.output_rows += b.num_rows();
+                Ok(Some(b))
+            }
+            None => {
+                common_telemetry::info!(
+                    "[DEBUG] parquet chunk stream got {} rows, trace_id: {:?}",
+                    self.output_rows,
+                    common_telemetry::trace_id(),
+                );
+                Ok(None)
+            }
+        }
     }
 }
 
@@ -464,6 +479,7 @@ impl MergeReaderBuilder {
             cold: BinaryHeap::with_capacity(num_sources),
             batch_size: self.batch_size,
             batch_builder,
+            output_rows: 0,
         }
     }
 }

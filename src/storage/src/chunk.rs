@@ -41,6 +41,7 @@ pub struct ChunkReaderImpl {
     batch_reader: BoxedBatchReader,
     output_ordering: Option<Vec<OrderOption>>,
     output_rows: usize,
+    region_id: RegionId,
 }
 
 #[async_trait]
@@ -55,7 +56,12 @@ impl ChunkReader for ChunkReaderImpl {
         let batch = match self.batch_reader.next_batch().await? {
             Some(b) => b,
             None => {
-                common_telemetry::info!("[DEBUG] chunk reader end with {} rows", self.output_rows);
+                common_telemetry::info!(
+                    "[DEBUG] chunk reader end with {} rows, trace_id {:?}, region_id: {}",
+                    self.output_rows,
+                    common_telemetry::trace_id(),
+                    self.region_id,
+                );
                 return Ok(None);
             }
         };
@@ -80,12 +86,14 @@ impl ChunkReaderImpl {
         schema: ProjectedSchemaRef,
         batch_reader: BoxedBatchReader,
         output_ordering: Option<Vec<OrderOption>>,
+        region_id: RegionId,
     ) -> ChunkReaderImpl {
         ChunkReaderImpl {
             schema,
             batch_reader,
             output_ordering,
             output_rows: 0,
+            region_id,
         }
     }
 
@@ -295,6 +303,7 @@ impl ChunkReaderBuilder {
     }
 
     pub async fn build(mut self) -> Result<ChunkReaderImpl> {
+        let region_id = self.region_id;
         let time_range_predicate = self.build_time_range_predicate();
         let schema = Arc::new(
             ProjectedSchema::new(self.schema.clone(), self.projection.clone())
@@ -314,7 +323,12 @@ impl ChunkReaderBuilder {
             self.build_reader(&schema, &time_range_predicate).await?
         };
 
-        Ok(ChunkReaderImpl::new(schema, reader, output_ordering))
+        Ok(ChunkReaderImpl::new(
+            schema,
+            reader,
+            output_ordering,
+            region_id,
+        ))
     }
 
     async fn build_chained(
