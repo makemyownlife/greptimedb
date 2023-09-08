@@ -234,24 +234,29 @@ impl GrpcQueryHandler for Instance {
     type Error = error::Error;
 
     async fn do_query(&self, request: Request, ctx: QueryContextRef) -> Result<Output> {
-        match request {
-            Request::Inserts(requests) => self.handle_inserts(requests, ctx).await,
-            Request::Deletes(request) => self.handle_deletes(request, ctx).await,
-            Request::Query(query_request) => {
-                let query = query_request
-                    .query
-                    .context(error::MissingRequiredFieldSnafu {
-                        name: "QueryRequest.query",
-                    })?;
-                self.handle_query(query, ctx).await
-            }
-            Request::Ddl(request) => self.handle_ddl(request, ctx).await,
-            Request::RowInserts(requests) => self.handle_row_inserts(requests, ctx).await,
-            Request::RowDeletes(_) => UnsupportedGrpcRequestSnafu {
-                kind: "row deletes",
-            }
-            .fail(),
-        }
+        common_telemetry::TRACE_ID
+            .scope(ctx.trace_id(), async move {
+                match request {
+                    Request::Inserts(requests) => self.handle_inserts(requests, ctx).await,
+                    Request::Deletes(request) => self.handle_deletes(request, ctx).await,
+                    Request::Query(query_request) => {
+                        let query =
+                            query_request
+                                .query
+                                .context(error::MissingRequiredFieldSnafu {
+                                    name: "QueryRequest.query",
+                                })?;
+                        self.handle_query(query, ctx).await
+                    }
+                    Request::Ddl(request) => self.handle_ddl(request, ctx).await,
+                    Request::RowInserts(requests) => self.handle_row_inserts(requests, ctx).await,
+                    Request::RowDeletes(_) => UnsupportedGrpcRequestSnafu {
+                        kind: "row deletes",
+                    }
+                    .fail(),
+                }
+            })
+            .await
     }
 }
 
