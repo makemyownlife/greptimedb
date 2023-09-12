@@ -47,12 +47,6 @@ impl Snapshot for SnapshotImpl {
         ctx: &ReadContext,
         request: ScanRequest,
     ) -> Result<ScanResponse<ChunkReaderImpl>> {
-        common_telemetry::info!(
-            "incomming scan request: {:?}, trace_id: {:?}, region_id: {}",
-            request,
-            common_telemetry::trace_id(),
-            self.version.metadata().id()
-        );
         let visible_sequence = self.sequence_to_read(request.sequence);
         let memtable_version = self.version.memtables();
 
@@ -71,7 +65,7 @@ impl Snapshot for SnapshotImpl {
         .output_ordering(request.output_ordering)
         .visible_sequence(visible_sequence)
         .pick_memtables(mutables.clone())
-        .use_chain_reader(false);
+        .use_chain_reader(true);
 
         for memtable in immutables {
             builder = builder.pick_memtables(memtable.clone());

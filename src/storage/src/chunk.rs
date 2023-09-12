@@ -40,8 +40,6 @@ pub struct ChunkReaderImpl {
     schema: ProjectedSchemaRef,
     batch_reader: BoxedBatchReader,
     output_ordering: Option<Vec<OrderOption>>,
-    output_rows: usize,
-    region_id: RegionId,
 }
 
 #[async_trait]
@@ -55,17 +53,8 @@ impl ChunkReader for ChunkReaderImpl {
     async fn next_chunk(&mut self) -> Result<Option<Chunk>> {
         let batch = match self.batch_reader.next_batch().await? {
             Some(b) => b,
-            None => {
-                common_telemetry::info!(
-                    "[DEBUG] chunk reader end with {} rows, trace_id {:?}, region_id: {}",
-                    self.output_rows,
-                    common_telemetry::trace_id(),
-                    self.region_id,
-                );
-                return Ok(None);
-            }
+            None => return Ok(None),
         };
-        self.output_rows += batch.num_rows();
         Ok(Some(Chunk::new(batch.columns)))
     }
 
@@ -86,14 +75,11 @@ impl ChunkReaderImpl {
         schema: ProjectedSchemaRef,
         batch_reader: BoxedBatchReader,
         output_ordering: Option<Vec<OrderOption>>,
-        region_id: RegionId,
     ) -> ChunkReaderImpl {
         ChunkReaderImpl {
             schema,
             batch_reader,
             output_ordering,
-            output_rows: 0,
-            region_id,
         }
     }
 
@@ -297,13 +283,12 @@ impl ChunkReaderBuilder {
             num_read_files,
         );
 
-        let reader = reader_builder.build(common_telemetry::trace_id().unwrap_or_default());
+        let reader = reader_builder.build();
         let reader = DedupReader::new(schema.clone(), reader);
         Ok(Box::new(reader) as Box<_>)
     }
 
     pub async fn build(mut self) -> Result<ChunkReaderImpl> {
-        let region_id = self.region_id;
         let time_range_predicate = self.build_time_range_predicate();
         let schema = Arc::new(
             ProjectedSchema::new(self.schema.clone(), self.projection.clone())
@@ -323,12 +308,7 @@ impl ChunkReaderBuilder {
             self.build_reader(&schema, &time_range_predicate).await?
         };
 
-        Ok(ChunkReaderImpl::new(
-            schema,
-            reader,
-            output_ordering,
-            region_id,
-        ))
+        Ok(ChunkReaderImpl::new(schema, reader, output_ordering))
     }
 
     async fn build_chained(

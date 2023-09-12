@@ -192,7 +192,6 @@ struct BTreeIterator {
     adapter: ReadAdapter,
     map: Arc<RwLockMap>,
     last_key: Option<InnerKey>,
-    output_rows: usize,
 }
 
 impl BatchIterator for BTreeIterator {
@@ -209,22 +208,7 @@ impl Iterator for BTreeIterator {
     type Item = Result<Batch>;
 
     fn next(&mut self) -> Option<Result<Batch>> {
-        let batch = self.next_batch().transpose();
-        match batch {
-            Some(Ok(b)) => {
-                self.output_rows += b.num_rows();
-                Some(Ok(b))
-            }
-            Some(e) => Some(e),
-            None => {
-                common_telemetry::info!(
-                    "[DEBUG] btree iterator end with {} rows, trace_id: {:?}",
-                    self.output_rows,
-                    common_telemetry::trace_id(),
-                );
-                None
-            }
-        }
+        self.next_batch().transpose()
     }
 }
 
@@ -247,7 +231,6 @@ impl BTreeIterator {
             adapter,
             map,
             last_key: None,
-            output_rows: 0,
         })
     }
 

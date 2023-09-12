@@ -323,7 +323,6 @@ pub struct ChunkStream {
     _file_handle: FileHandle,
     adapter: ReadAdapter,
     stream: SendableChunkStream,
-    output_rows: usize,
 }
 
 impl ChunkStream {
@@ -336,7 +335,6 @@ impl ChunkStream {
             _file_handle: file_handle,
             adapter,
             stream,
-            output_rows: 0,
         })
     }
 }
@@ -344,27 +342,11 @@ impl ChunkStream {
 #[async_trait]
 impl BatchReader for ChunkStream {
     async fn next_batch(&mut self) -> Result<Option<Batch>> {
-        let batch = self
-            .stream
+        self.stream
             .try_next()
             .await?
             .map(|rb| self.adapter.arrow_record_batch_to_batch(&rb))
-            .transpose()?;
-        match batch {
-            Some(b) => {
-                self.output_rows += b.num_rows();
-                Ok(Some(b))
-            }
-            None => {
-                common_telemetry::info!(
-                    "[DEBUG] parquet chunk stream got {} rows, trace_id: {:?}, region_id: {:?}",
-                    self.output_rows,
-                    common_telemetry::trace_id(),
-                    self._file_handle.inner.meta.region_id
-                );
-                Ok(None)
-            }
-        }
+            .transpose()
     }
 }
 
