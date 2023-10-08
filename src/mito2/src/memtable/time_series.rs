@@ -20,6 +20,7 @@ use std::sync::{Arc, RwLock};
 
 use api::v1::OpType;
 use common_query::logical_plan::Expr;
+use common_telemetry::warn;
 use datatypes::arrow;
 use datatypes::arrow::array::ArrayRef;
 use datatypes::data_type::DataType;
@@ -32,7 +33,10 @@ use snafu::{ensure, ResultExt};
 use store_api::metadata::RegionMetadataRef;
 use store_api::storage::ColumnId;
 
-use crate::error::{ComputeArrowSnafu, ConvertVectorSnafu, PrimaryKeyLengthMismatchSnafu, Result};
+use crate::error::{
+    ComputeArrowSnafu, ConvertVectorSnafu, FieldTypeMismatchSnafu, PrimaryKeyLengthMismatchSnafu,
+    Result,
+};
 use crate::flush::WriteBufferManagerRef;
 use crate::memtable::{
     AllocTracker, BoxedBatchIterator, KeyValues, Memtable, MemtableBuilder, MemtableId,
@@ -190,7 +194,11 @@ impl Memtable for TimeSeriesMemtable {
             max_ts = max_ts.max(ts);
 
             let mut guard = series.write().unwrap();
-            guard.push(kv.timestamp(), kv.sequence(), kv.op_type(), fields);
+            guard.push(kv.timestamp(), kv.sequence(), kv.op_type(), fields)
+                .map_err(|e| {
+                    warn!(e; "Failed to write to memtable series, memtable schema: {:?}", self.region_metadata);
+                    e
+                })?;
         }
 
         // TODO(hl): this maybe inaccurate since for-iteration may return early.
@@ -339,8 +347,14 @@ impl Series {
     }
 
     /// Pushes a row of values into Series.
-    fn push(&mut self, ts: ValueRef, sequence: u64, op_type: OpType, values: Vec<ValueRef>) {
-        self.active.push(ts, sequence, op_type as u8, values);
+    fn push(
+        &mut self,
+        ts: ValueRef,
+        sequence: u64,
+        op_type: OpType,
+        values: Vec<ValueRef>,
+    ) -> Result<()> {
+        self.active.push(ts, sequence, op_type as u8, values)
     }
 
     /// Freezes the active part and push it to `frozen`.
@@ -428,14 +442,27 @@ impl ValueBuilder {
 
     /// Pushes a new row to `ValueBuilder`.
     /// We don't need primary keys since they've already be encoded.
-    fn push(&mut self, ts: ValueRef, sequence: u64, op_type: u8, fields: Vec<ValueRef>) {
+    fn push(
+        &mut self,
+        ts: ValueRef,
+        sequence: u64,
+        op_type: u8,
+        fields: Vec<ValueRef>,
+    ) -> Result<()> {
         debug_assert_eq!(fields.len(), self.fields.len());
         self.timestamp.push_value_ref(ts);
         self.sequence.push_value_ref(ValueRef::UInt64(sequence));
         self.op_type.push_value_ref(ValueRef::UInt8(op_type));
+        let mut res = Ok(());
         for (idx, field_value) in fields.into_iter().enumerate() {
-            self.fields[idx].push_value_ref(field_value);
+            if let Err(e) = self.fields[idx].try_push_value_ref(field_value) {
+                res = Err(e);
+            } else {
+                self.fields[idx].push_value_ref(ValueRef::Null);
+            }
         }
+
+        res.context(FieldTypeMismatchSnafu)
     }
 
     /// Returns the length of [ValueBuilder]
@@ -645,8 +672,12 @@ mod tests {
     fn test_series() {
         let region_metadata = schema_for_test();
         let mut series = Series::new(&region_metadata);
-        series.push(ts_value_ref(1), 0, OpType::Put, field_value_ref(1, 10.1));
-        series.push(ts_value_ref(2), 0, OpType::Put, field_value_ref(2, 10.2));
+        series
+            .push(ts_value_ref(1), 0, OpType::Put, field_value_ref(1, 10.1))
+            .unwrap();
+        series
+            .push(ts_value_ref(2), 0, OpType::Put, field_value_ref(2, 10.2))
+            .unwrap();
         assert_eq!(2, series.active.timestamp.len());
         assert_eq!(0, series.frozen.len());
 
@@ -797,12 +828,14 @@ mod tests {
                     let primary_key = format!("pk-{}", pk).as_bytes().to_vec();
                     let (series, _) = set.get_or_add_series(primary_key);
                     let mut guard = series.write().unwrap();
-                    guard.push(
-                        ts_value_ref(j as i64),
-                        j as u64,
-                        OpType::Put,
-                        field_value_ref(j as i64, j as f64),
-                    );
+                    guard
+                        .push(
+                            ts_value_ref(j as i64),
+                            j as u64,
+                            OpType::Put,
+                            field_value_ref(j as i64, j as f64),
+                        )
+                        .unwrap();
                 }
             });
             handles.push(handle);

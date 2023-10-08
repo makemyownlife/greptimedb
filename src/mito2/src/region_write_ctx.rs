@@ -17,6 +17,7 @@ use std::sync::Arc;
 
 use api::v1::{Mutation, Rows, WalEntry};
 use common_query::Output;
+use common_telemetry::warn;
 use snafu::ResultExt;
 use store_api::logstore::LogStore;
 use store_api::storage::{RegionId, SequenceNumber};
@@ -173,6 +174,11 @@ impl RegionWriteCtx {
                 continue;
             };
             if let Err(e) = mutable.write(&kvs) {
+                warn!(
+                    e; "Failed to write to memtable, region_schema: {:?}, mutation_schema: {:?}, helper: {:?}",
+                    self.version.metadata, kvs.mutation.rows.as_ref().map(|rows| &rows.schema), kvs.helper,
+                );
+
                 notify.err = Some(Arc::new(e));
             }
         }

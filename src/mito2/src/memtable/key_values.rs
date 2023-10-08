@@ -26,9 +26,9 @@ pub struct KeyValues {
     ///
     /// This mutation must be a valid mutation and rows in the mutation
     /// must not be `None`.
-    mutation: Mutation,
+    pub(crate) mutation: Mutation,
     /// Key value read helper.
-    helper: ReadRowHelper,
+    pub(crate) helper: ReadRowHelper,
 }
 
 impl KeyValues {
@@ -122,7 +122,7 @@ impl<'a> KeyValue<'a> {
 
 /// Helper to read rows in key, value order.
 #[derive(Debug)]
-struct ReadRowHelper {
+pub(crate) struct ReadRowHelper {
     /// Key and value column indices.
     ///
     /// `indices[..num_primary_key_column]` are primary key columns, `indices[num_primary_key_column]`
