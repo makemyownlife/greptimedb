@@ -456,9 +456,8 @@ impl ValueBuilder {
         let mut res = Ok(());
         for (idx, field_value) in fields.into_iter().enumerate() {
             if let Err(e) = self.fields[idx].try_push_value_ref(field_value) {
-                res = Err(e);
-            } else {
                 self.fields[idx].push_value_ref(ValueRef::Null);
+                res = Err(e);
             }
         }
 
