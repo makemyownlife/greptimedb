@@ -175,8 +175,8 @@ impl RegionWriteCtx {
             };
             if let Err(e) = mutable.write(&kvs) {
                 warn!(
-                    e; "Failed to write to memtable, region_schema: {:?}, mutation_schema: {:?}, helper: {:?}",
-                    self.version.metadata, kvs.mutation.rows.as_ref().map(|rows| &rows.schema), kvs.helper,
+                    e; "Failed to write to memtable, region_schema: {:?}, mutation_schema: {:?}, mutation_type: {:?}, helper: {:?}",
+                    self.version.metadata, kvs.mutation.rows.as_ref().map(|rows| &rows.schema), kvs.mutation.op_type, kvs.helper,
                 );
 
                 notify.err = Some(Arc::new(e));
