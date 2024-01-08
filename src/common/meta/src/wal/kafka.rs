@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(any(test, feature = "testing"))]
+pub mod test_util;
 pub mod topic;
 pub mod topic_manager;
 pub mod topic_selector;
@@ -19,7 +21,6 @@ pub mod topic_selector;
 use std::time::Duration;
 
 use common_config::wal::kafka::{kafka_backoff, KafkaBackoffConfig, TopicSelectorType};
-use common_config::wal::StandaloneWalConfig;
 use serde::{Deserialize, Serialize};
 
 pub use crate::wal::kafka::topic::Topic;
@@ -27,6 +28,7 @@ pub use crate::wal::kafka::topic_manager::TopicManager;
 
 /// Configurations for kafka wal.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct KafkaConfig {
     /// The broker endpoints of the Kafka cluster.
     pub broker_endpoints: Vec<String>,
@@ -40,7 +42,7 @@ pub struct KafkaConfig {
     pub num_partitions: i32,
     /// The replication factor of each topic.
     pub replication_factor: i16,
-    /// Above which a topic creation operation will be cancelled.
+    /// The timeout of topic creation.
     #[serde(with = "humantime_serde")]
     pub create_topic_timeout: Duration,
     /// The backoff config.

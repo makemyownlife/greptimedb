@@ -18,10 +18,10 @@ pub mod options_allocator;
 use std::collections::HashMap;
 
 use common_config::wal::StandaloneWalConfig;
+use common_config::WAL_OPTIONS_KEY;
 use serde::{Deserialize, Serialize};
-use serde_with::with_prefix;
+use store_api::storage::{RegionId, RegionNumber};
 
-use crate::error::Result;
 use crate::wal::kafka::KafkaConfig;
 pub use crate::wal::kafka::Topic as KafkaWalTopic;
 pub use crate::wal::options_allocator::{
@@ -40,7 +40,7 @@ pub enum WalConfig {
 impl From<StandaloneWalConfig> for WalConfig {
     fn from(value: StandaloneWalConfig) -> Self {
         match value {
-            StandaloneWalConfig::RaftEngine(config) => WalConfig::RaftEngine,
+            StandaloneWalConfig::RaftEngine(_) => WalConfig::RaftEngine,
             StandaloneWalConfig::Kafka(config) => WalConfig::Kafka(KafkaConfig {
                 broker_endpoints: config.base.broker_endpoints,
                 num_topics: config.num_topics,
@@ -52,6 +52,16 @@ impl From<StandaloneWalConfig> for WalConfig {
                 backoff: config.base.backoff,
             }),
         }
+    }
+}
+
+pub fn prepare_wal_option(
+    options: &mut HashMap<String, String>,
+    region_id: RegionId,
+    region_wal_options: &HashMap<RegionNumber, String>,
+) {
+    if let Some(wal_options) = region_wal_options.get(&region_id.region_number()) {
+        options.insert(WAL_OPTIONS_KEY.to_string(), wal_options.clone());
     }
 }
 

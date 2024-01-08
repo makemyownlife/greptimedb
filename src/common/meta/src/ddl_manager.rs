@@ -26,10 +26,10 @@ use crate::datanode_manager::DatanodeManagerRef;
 use crate::ddl::alter_table::AlterTableProcedure;
 use crate::ddl::create_table::CreateTableProcedure;
 use crate::ddl::drop_table::DropTableProcedure;
+use crate::ddl::table_meta::TableMetadataAllocator;
 use crate::ddl::truncate_table::TruncateTableProcedure;
 use crate::ddl::{
     DdlContext, DdlTaskExecutor, ExecutorContext, TableMetadata, TableMetadataAllocatorContext,
-    TableMetadataAllocatorRef,
 };
 use crate::error::{
     self, RegisterProcedureLoaderSnafu, Result, SubmitProcedureSnafu, TableNotFoundSnafu,
@@ -46,6 +46,8 @@ use crate::rpc::ddl::{
     TruncateTableTask,
 };
 use crate::rpc::router::RegionRoute;
+use crate::table_name::TableName;
+
 pub type DdlManagerRef = Arc<DdlManager>;
 
 /// The [DdlManager] provides the ability to execute Ddl.
@@ -54,7 +56,7 @@ pub struct DdlManager {
     datanode_manager: DatanodeManagerRef,
     cache_invalidator: CacheInvalidatorRef,
     table_metadata_manager: TableMetadataManagerRef,
-    table_metadata_allocator: TableMetadataAllocatorRef,
+    table_metadata_allocator: TableMetadataAllocator,
     memory_region_keeper: MemoryRegionKeeperRef,
 }
 
@@ -65,7 +67,7 @@ impl DdlManager {
         datanode_clients: DatanodeManagerRef,
         cache_invalidator: CacheInvalidatorRef,
         table_metadata_manager: TableMetadataManagerRef,
-        table_metadata_allocator: TableMetadataAllocatorRef,
+        table_metadata_allocator: TableMetadataAllocator,
         memory_region_keeper: MemoryRegionKeeperRef,
     ) -> Result<Self> {
         let manager = Self {
@@ -160,11 +162,17 @@ impl DdlManager {
         cluster_id: u64,
         alter_table_task: AlterTableTask,
         table_info_value: DeserializedValueWithBytes<TableInfoValue>,
+        physical_table_name: Option<TableName>,
     ) -> Result<ProcedureId> {
         let context = self.create_context();
 
-        let procedure =
-            AlterTableProcedure::new(cluster_id, alter_table_task, table_info_value, context)?;
+        let procedure = AlterTableProcedure::new(
+            cluster_id,
+            alter_table_task,
+            table_info_value,
+            physical_table_name,
+            context,
+        )?;
 
         let procedure_with_id = ProcedureWithId::with_random_id(Box::new(procedure));
 
@@ -278,7 +286,7 @@ async fn handle_truncate_table_task(
     let table_route_value =
         table_route_value.context(error::TableRouteNotFoundSnafu { table_id })?;
 
-    let table_route = table_route_value.into_inner().region_routes().clone();
+    let table_route = table_route_value.into_inner().region_routes()?.clone();
 
     let id = ddl_manager
         .submit_truncate_table_task(
@@ -327,8 +335,38 @@ async fn handle_alter_table_task(
             table_name: table_ref.to_string(),
         })?;
 
+    let physical_table_id = ddl_manager
+        .table_metadata_manager()
+        .table_route_manager()
+        .get_physical_table_id(table_id)
+        .await?;
+
+    let physical_table_name = if physical_table_id == table_id {
+        None
+    } else {
+        let physical_table_info = &ddl_manager
+            .table_metadata_manager()
+            .table_info_manager()
+            .get(physical_table_id)
+            .await?
+            .with_context(|| error::TableInfoNotFoundSnafu {
+                table_name: table_ref.to_string(),
+            })?
+            .table_info;
+        Some(TableName {
+            catalog_name: physical_table_info.catalog_name.clone(),
+            schema_name: physical_table_info.schema_name.clone(),
+            table_name: physical_table_info.name.clone(),
+        })
+    };
+
     let id = ddl_manager
-        .submit_alter_table_task(cluster_id, alter_table_task, table_info_value)
+        .submit_alter_table_task(
+            cluster_id,
+            alter_table_task,
+            table_info_value,
+            physical_table_name,
+        )
         .await?;
 
     info!("Table: {table_id} is altered via procedure_id {id:?}");
@@ -461,15 +499,15 @@ mod tests {
     use crate::ddl::alter_table::AlterTableProcedure;
     use crate::ddl::create_table::CreateTableProcedure;
     use crate::ddl::drop_table::DropTableProcedure;
+    use crate::ddl::table_meta::TableMetadataAllocator;
     use crate::ddl::truncate_table::TruncateTableProcedure;
-    use crate::ddl::{TableMetadata, TableMetadataAllocator, TableMetadataAllocatorContext};
-    use crate::error::Result;
     use crate::key::TableMetadataManager;
     use crate::kv_backend::memory::MemoryKvBackend;
     use crate::peer::Peer;
     use crate::region_keeper::MemoryRegionKeeper;
-    use crate::rpc::ddl::CreateTableTask;
+    use crate::sequence::SequenceBuilder;
     use crate::state_store::KvStateStore;
+    use crate::wal::WalOptionsAllocator;
 
     /// A dummy implemented [DatanodeManager].
     pub struct DummyDatanodeManager;
@@ -481,26 +519,12 @@ mod tests {
         }
     }
 
-    /// A dummy implemented [TableMetadataAllocator].
-    pub struct DummyTableMetadataAllocator;
-
-    #[async_trait::async_trait]
-    impl TableMetadataAllocator for DummyTableMetadataAllocator {
-        async fn create(
-            &self,
-            _ctx: &TableMetadataAllocatorContext,
-            _task: &CreateTableTask,
-        ) -> Result<TableMetadata> {
-            unimplemented!()
-        }
-    }
-
     #[test]
     fn test_try_new() {
         let kv_backend = Arc::new(MemoryKvBackend::new());
         let table_metadata_manager = Arc::new(TableMetadataManager::new(kv_backend.clone()));
 
-        let state_store = Arc::new(KvStateStore::new(kv_backend));
+        let state_store = Arc::new(KvStateStore::new(kv_backend.clone()));
         let procedure_manager = Arc::new(LocalManager::new(Default::default(), state_store));
 
         let _ = DdlManager::try_new(
@@ -508,7 +532,11 @@ mod tests {
             Arc::new(DummyDatanodeManager),
             Arc::new(DummyCacheInvalidator),
             table_metadata_manager,
-            Arc::new(DummyTableMetadataAllocator),
+            TableMetadataAllocator::new(
+                Arc::new(SequenceBuilder::new("test", kv_backend.clone()).build()),
+                Arc::new(WalOptionsAllocator::default()),
+                Arc::new(TableMetadataManager::new(kv_backend)),
+            ),
             Arc::new(MemoryRegionKeeper::default()),
         );
 

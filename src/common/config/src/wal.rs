@@ -90,11 +90,12 @@ mod tests {
 
     #[test]
     fn test_serde_kafka_config() {
+        // With all fields.
         let toml_str = r#"
             broker_endpoints = ["127.0.0.1:9092"]
-            max_batch_size = "4MB"
+            max_batch_size = "1MB"
             linger = "200ms"
-            produce_record_timeout = "100ms"
+            consumer_wait_timeout = "100ms"
             backoff_init = "500ms"
             backoff_max = "10s"
             backoff_base = 2
@@ -104,15 +105,28 @@ mod tests {
         let expected = KafkaConfig {
             broker_endpoints: vec!["127.0.0.1:9092".to_string()],
             compression: RsKafkaCompression::default(),
-            max_batch_size: ReadableSize::mb(4),
+            max_batch_size: ReadableSize::mb(1),
             linger: Duration::from_millis(200),
-            produce_record_timeout: Duration::from_millis(100),
+            consumer_wait_timeout: Duration::from_millis(100),
             backoff: KafkaBackoffConfig {
                 init: Duration::from_millis(500),
                 max: Duration::from_secs(10),
                 base: 2,
                 deadline: Some(Duration::from_secs(60 * 5)),
             },
+        };
+        assert_eq!(decoded, expected);
+
+        // With some fields missing.
+        let toml_str = r#"
+            broker_endpoints = ["127.0.0.1:9092"]
+            linger = "200ms"
+        "#;
+        let decoded: KafkaConfig = toml::from_str(toml_str).unwrap();
+        let expected = KafkaConfig {
+            broker_endpoints: vec!["127.0.0.1:9092".to_string()],
+            linger: Duration::from_millis(200),
+            ..Default::default()
         };
         assert_eq!(decoded, expected);
     }
