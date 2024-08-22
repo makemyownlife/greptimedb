@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["df_func","error","func","id","linear","relation","scalar","signature"],"struct":["Batch"]};

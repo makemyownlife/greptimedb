@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["CollectionTask","GlobalIndexCollector","NoopCollector","ProviderLevelIndexCollector","RegionIndexes"],"trait":["IndexCollector"]};
